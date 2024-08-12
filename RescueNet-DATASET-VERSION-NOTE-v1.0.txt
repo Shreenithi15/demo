@@ -1,0 +1,90 @@
+import tensorflow as tf
+from tensorflow.keras import layers, models # type: ignore
+from sklearn.model_selection import train_test_split
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+from PIL import Image
+
+# 1. Load and preprocess the dataset
+def load_custom_dataset(dataset_path, img_size=(32, 32)):
+    images = []
+    labels = []
+    label_map = {}  # Dictionary to map labels to integers
+
+    for label_id, label_name in enumerate(os.listdir(dataset_path)):
+        label_map[label_name] = label_id
+        label_dir = os.path.join(dataset_path, label_name)
+        for img_name in os.listdir(label_dir):
+            img_path = os.path.join(label_dir, img_name)
+            image = Image.open(img_path)
+            image = image.resize(img_size)
+            images.append(np.array(image))
+            labels.append(label_id)
+
+    images = np.array(images) / 255.0  # Normalize the images
+    labels = np.array(labels)
+    return images, labels, label_map
+
+# 2. Split the dataset
+def split_dataset(images, labels, test_size=0.2):
+    train_images, test_images, train_labels, test_labels = train_test_split(
+        images, labels, test_size=test_size, random_state=42)
+    return train_images, test_images, train_labels, test_labels
+
+# 3. Build the CNN model
+def build_model(input_shape):
+    model = models.Sequential()
+    model.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=input_shape))
+    model.add(layers.MaxPooling2D((2, 2)))
+    model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+    model.add(layers.MaxPooling2D((2, 2)))
+    model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+    model.add(layers.Flatten())
+    model.add(layers.Dense(64, activation='relu'))
+    #model.add(layers.Dense(len(label_map), activation='softmax'))
+    return model
+
+# 4. Compile and train the model
+def train_model(model, train_images, train_labels, test_images, test_labels, epochs=10):
+    model.compile(optimizer='adam',
+                  loss='sparse_categorical_crossentropy',
+                  metrics=['accuracy'])
+    history = model.fit(train_images, train_labels, epochs=epochs, 
+                        validation_data=(test_images, test_labels))
+    return history
+
+# 5. Plot training history
+def plot_history(history):
+    plt.plot(history.history['accuracy'], label='accuracy')
+    plt.plot(history.history['val_accuracy'], label='val_accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.ylim([0, 1])
+    plt.legend(loc='lower right')
+    plt.show()
+
+# 6. Predict on new images
+def predict(model, new_images):
+    predictions = model.predict(new_images)
+    return np.argmax(predictions, axis=1)
+
+# Main function
+def main():
+    dataset_path = r'C:\Users\Shreenithi\OneDrive\Desktop\train-org-img'
+    images, labels, label_map = load_custom_dataset(dataset_path, img_size=(40, 32))
+    train_images, test_images, train_labels, test_labels = split_dataset(images, labels)
+
+    model = build_model(train_images.shape[1:])
+    history = train_model(model, train_images, train_labels, test_images, test_labels)
+    plot_history(history)
+
+    # Example of predicting on a few test images
+    predicted_labels = predict(model, test_images[:5])
+    for i, pred in enumerate(predicted_labels):
+        plt.imshow(test_images[i])
+        plt.title(f"Predicted: {pred}, True: {test_labels[i]}")
+        plt.show()
+
+if _name_ == "_main_":
+    main()
